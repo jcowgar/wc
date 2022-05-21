@@ -1,11 +1,5 @@
 const std = @import("std");
-const argsParser = @import("args");
-
-const Stats = struct {
-    lines: u32,
-    words: u32,
-    chars: u32,
-};
+const wc = @import("word_count.zig");
 
 var showLines: bool = false;
 var showWords: bool = false;
@@ -44,13 +38,13 @@ pub fn main() anyerror!void {
         showChars = true;
     }
 
-    var totals = Stats{ .lines = 0, .words = 0, .chars = 0 };
+    var totals = wc.Stats.empty();
 
     for (files.items) |fname| {
         var f = try std.fs.cwd().openFile(fname, .{});
         defer f.close();
 
-        var s = try count_lines(f);
+        var s = try wc.count_lines(f);
 
         try report(s, fname);
 
@@ -64,7 +58,7 @@ pub fn main() anyerror!void {
     }
 }
 
-pub fn report(s: Stats, label: []const u8) !void {
+fn report(s: wc.Stats, label: []const u8) !void {
     if (showLines) {
         try stdout.print(" {d}", .{s.lines});
     }
@@ -78,46 +72,4 @@ pub fn report(s: Stats, label: []const u8) !void {
     }
 
     try stdout.print(" {s}\n", .{label});
-}
-
-pub fn count_lines(f: std.fs.File) !Stats {
-    var buf = std.io.bufferedReader(f.reader());
-    var r = buf.reader();
-    var b: u8 = 1;
-    var s = Stats{ .lines = 0, .words = 0, .chars = 0 };
-    var inWord = false;
-
-    while (true) {
-        // TODO handle any non-endOfStream errors
-        b = r.readByte() catch {
-            break;
-        };
-
-        if (b == '\n') {
-            inWord = false;
-            s.lines += 1;
-        } else if ((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z')) {
-            if (!inWord) {
-                inWord = true;
-                s.words += 1;
-            }
-        } else {
-            inWord = false;
-        }
-
-        s.chars += 1;
-    }
-
-    return s;
-}
-
-test "mobydick.txt" {
-    var f = try std.fs.cwd().openFile("../testdata/mobydick.txt", .{});
-    defer f.close();
-
-    var s = try count_lines(f);
-
-    try std.testing.expect(s.lines == 15603);
-    try std.testing.expect(s.words == 112151);
-    try std.testing.expect(s.chars == 643210);
 }
