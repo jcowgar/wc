@@ -8,22 +8,26 @@ import (
 	"unicode"
 )
 
+// Stats tracks the Character, Word and Line count.
 type Stats struct {
-	Filename string
-	Chars    int
-	Words    int
-	Lines    int
+	// Chars is the number of characters counted.
+	Chars int
+
+	// Words is the number of words counted. A single word is
+	// defined by one or more Unicode Letter characters separated
+	// by a non Unicode Letter character.
+	Words int
+
+	// Lines is the number of lines counted. Lines is computed
+	// by the number of Newline (\n) characters.
+	Lines int
 }
 
-func Count(filename string) (Stats, error) {
-	fh, err := os.Open(filename)
-	if err != nil {
-		return Stats{}, fmt.Errorf("failed to open file: %w", err)
-	}
-	defer fh.Close()
-
-	r := bufio.NewReader(fh)
+// Count returns the Stats for the io.Reader.
+func Count(r io.Reader) (Stats, error) {
+	r = bufio.NewReader(r)
 	b := []byte{0}
+
 	stats := Stats{}
 
 	inWord := false
@@ -40,18 +44,32 @@ func Count(filename string) (Stats, error) {
 
 		r := rune(b[0])
 
-		if unicode.IsSpace(r) {
-			if inWord {
-				inWord = false
-			} else {
+		switch {
+		case unicode.IsLetter(r):
+			if !inWord {
 				inWord = true
 				stats.Words++
 			}
-		}
-		if r == '\n' {
+
+		case r == '\n':
 			stats.Lines++
+			fallthrough
+
+		default:
+			inWord = false
 		}
 	}
 
 	return stats, nil
+}
+
+// CountFile returns the Stats for filename.
+func CountFile(filename string) (Stats, error) {
+	fh, err := os.Open(filename)
+	if err != nil {
+		return Stats{}, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer fh.Close()
+
+	return Count(fh)
 }
