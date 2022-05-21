@@ -3,7 +3,9 @@ package wc
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"unicode"
 )
 
 type Stats struct {
@@ -24,7 +26,31 @@ func Count(filename string) (Stats, error) {
 	b := []byte{0}
 	stats := Stats{}
 
-	for _, err := r.Read(b); err == nil; {
+	inWord := false
+
+	for {
+		_, e := r.Read(b)
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return Stats{}, fmt.Errorf("failure during read: %w", e)
+		}
+
+		stats.Chars++
+
+		r := rune(b[0])
+
+		if unicode.IsSpace(r) {
+			if inWord {
+				inWord = false
+			} else {
+				inWord = true
+				stats.Words++
+			}
+		}
+		if r == '\n' {
+			stats.Lines++
+		}
 	}
 
 	return stats, nil

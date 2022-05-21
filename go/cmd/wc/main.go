@@ -20,6 +20,6 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("%s: %d/%d/%d\n", fname, stats.Lines, stats.Words, stats.Chars)
+		fmt.Printf(" %7d %7d %7d %s\n", stats.Lines, stats.Words, stats.Chars, fname)
 	}
 }
