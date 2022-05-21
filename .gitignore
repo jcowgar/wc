@@ -1,4 +1,4 @@
 go/wc
 rust/target
-zig/zig-cache
-zig/zig-out
+zig-cache
+zig-out

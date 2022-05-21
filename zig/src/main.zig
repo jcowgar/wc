@@ -48,6 +48,8 @@ pub fn main() anyerror!void {
 
     for (files.items) |fname| {
         var f = try std.fs.cwd().openFile(fname, .{});
+        defer f.close();
+
         var s = try count_lines(f);
 
         try report(s, fname);
@@ -107,4 +109,15 @@ pub fn count_lines(f: std.fs.File) !Stats {
     }
 
     return s;
+}
+
+test "mobydick.txt" {
+    var f = try std.fs.cwd().openFile("../testdata/mobydick.txt", .{});
+    defer f.close();
+
+    var s = try count_lines(f);
+
+    try std.testing.expect(s.lines == 15603);
+    try std.testing.expect(s.words == 112151);
+    try std.testing.expect(s.chars == 643210);
 }
