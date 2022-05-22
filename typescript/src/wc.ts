@@ -19,7 +19,7 @@ let showChars = false
 async function main() {
 	const files = parseArgs()
 
-	for (let f of files) {
+	for (const f of files) {
 		const stats = await word_count(f)
 		showReport(stats, f)
 	}
@@ -46,6 +46,7 @@ function parseArgs(): string[] {
 		})
 		.argv
 
+
 	showLines = args.lines === true
 	showWords = args.words === true
 	showChars = args.chars === true
@@ -58,7 +59,7 @@ function parseArgs(): string[] {
 }
 
 function showReport(stats: Stats, label: string) {
-	const p = (n: number) => process.stdout.write(`${n}`.padStart(8))
+	const p = (n: number) => process.stdout.write(` ${n}`.padStart(7))
 
 	if (showLines) {
 		p(stats.lines)
@@ -76,7 +77,7 @@ function showReport(stats: Stats, label: string) {
 function word_count(fname: string): Promise<Stats> {
 	return new Promise((res, rej) => {
 		const stats = new Stats()
-		let inWord = false;
+		let inWord = false
 
 		const rs = fs.createReadStream(fname)
 		rs.on('error', rej)
@@ -84,20 +85,18 @@ function word_count(fname: string): Promise<Stats> {
 			const s = chunk.toString()
 
 			for (let i = 0; i < s.length; i++) {
-				const ch = s[i];
+				const ch = s[i]
 
 				stats.chars++
 
-				if (ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z') {
-					if (!inWord) {
-						inWord = true
-						stats.words++
-					}
-				} else if (ch == '\n') {
+				if (ch == '\n') {
 					inWord = false
 					stats.lines++
-				} else {
+				} else if (ch == ' ' || ch == '\t' || ch == '\v' || ch == '\r') {
 					inWord = false
+				} else if (!inWord) {
+					inWord = true
+					stats.words++
 				}
 			}
 		})
