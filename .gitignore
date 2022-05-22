@@ -1,2 +1,4 @@
 go/wc
 rust/target
+zig-cache
+zig-out

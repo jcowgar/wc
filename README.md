@@ -13,6 +13,12 @@ The Go application was the first and model (basic spec) for the others.
 The purpose is not for an exact replica in each language adhering to a strict
 standard, but a base replica to compare languages.
 
+## Original Source
+
+The source for the common unix utility wc is located at:
+
+https://github.com/coreutils/coreutils/blob/master/src/wc.c
+
 
 ## Building
 
