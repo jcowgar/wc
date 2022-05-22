@@ -12,8 +12,65 @@ class Stats {
 	}
 }
 
+let showLines = false
+let showWords = false
+let showChars = false
+
 async function main() {
-	console.log(await word_count('../testdata/mobydick.txt'))
+	const files = parseArgs()
+
+	for (let f of files) {
+		const stats = await word_count(f)
+		showReport(stats, f)
+	}
+}
+
+function parseArgs(): string[] {
+	const args = require('yargs')
+		.scriptName('wc')
+		.usage('$0 [args] FILE [...FILE]')
+		.option('lines', {
+			alias: 'l',
+			type: 'boolean',
+			describe: 'Show line count',
+		})
+		.option('words', {
+			alias: 'w',
+			type: 'boolean',
+			describe: 'Show word count',
+		})
+		.option('chars', {
+			alias: 'm',
+			type: 'boolean',
+			describe: 'Show character count',
+		})
+		.argv
+
+	showLines = args.lines === true
+	showWords = args.words === true
+	showChars = args.chars === true
+
+	if (!showLines && !showWords && !showChars) {
+		showLines = showWords = showChars = true
+	}
+
+	return args._
+}
+
+function showReport(stats: Stats, label: string) {
+	const p = (n: number) => process.stdout.write(`${n}`.padStart(8))
+
+	if (showLines) {
+		p(stats.lines)
+	}
+	if (showWords) {
+		p(stats.words)
+	}
+	if (showChars) {
+		p(stats.chars)
+	}
+
+	process.stdout.write(` ${label}\n`)
 }
 
 function word_count(fname: string): Promise<Stats> {
