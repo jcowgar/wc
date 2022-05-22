@@ -2,6 +2,8 @@ go/wc
 rust/target
 zig-cache
 zig-out
+typescript/node_modules
+typescript/dist
 __pycache__
 c/wc
 
