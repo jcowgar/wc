@@ -5,23 +5,26 @@ class Stats:
     chars = 0
 
 
-def count_words(fname):
+def count_words(fname, bufsize=1024*4):
     """Count the number of lines, words and characters found in fname."""
     stats = Stats()
 
     with open(fname) as f:
         inWord = False
-        byte = f.read(1)
-        while byte:
-            stats.chars += 1
-            if byte == '\n':
-                stats.lines += 1
-            elif byte >= 'A' and byte <= 'Z' or byte >= 'a' and byte <= 'z':
-                if inWord is False:
-                    inWord = True
-                    stats.words += 1
-            else:
-                inWord = False
-            byte = f.read(1)
+        bytes = f.read(bufsize)
+        while bytes:
+            for byte in bytes:
+                stats.chars += 1
+
+                if byte.isalpha():
+                    if inWord is False:
+                        inWord = True
+                        stats.words += 1
+                elif byte == '\n':
+                    stats.lines += 1
+                    inWord = False
+                else:
+                    inWord = False
+            bytes = f.read(bufsize)
 
     return stats
