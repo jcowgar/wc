@@ -9,13 +9,13 @@ int showLines = 0;
 int showWords = 0;
 int showChars = 0;
 
-struct Stats {
+typedef struct {
 	unsigned long lines;
 	unsigned long words;
 	unsigned long chars;
-};
+} Stats;
 
-void report(struct Stats *s, char *label) {
+void report(Stats *s, char *label) {
 	if (showLines == 1) {
 		printf(" %7lu", s->lines);
 	}
@@ -28,7 +28,7 @@ void report(struct Stats *s, char *label) {
 	printf(" %s\n", label);
 }
 
-void word_count(char *fname, struct Stats *stats) {
+void word_count(char *fname, Stats *stats) {
 	char buf[BUFSIZE];
 	FILE *fp;
 
@@ -50,16 +50,16 @@ void word_count(char *fname, struct Stats *stats) {
 
 			stats->chars++;
 
-			if (isalpha(ch)) {
+			if (ch == '\n') {
+				inWord = 0;
+				stats->lines++;
+			} else if (isspace(ch)) {
+				inWord = 0;
+			} else {
 				if (inWord == 0) {
 					inWord = 1;
 					stats->words++;
 				}
-			} else if (ch == '\n') {
-				inWord = 0;
-				stats->lines++;
-			} else {
-				inWord = 0;
 			}
 		}
 	}
@@ -95,7 +95,7 @@ int parse_args(int argc, char **argv) {
 
 
 int main(int argc, char **argv) {
-	struct Stats totals;
+	Stats totals;
 	totals.lines = 0;
 	totals.words = 0;
 	totals.chars = 0;
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
 	for (; argIndex < argc; argIndex++) {
 		char *fname = argv[argIndex];
 
-		struct Stats s;
+		Stats s;
 		s.lines = 0;
 		s.words = 0;
 		s.chars = 0;
