@@ -3,6 +3,7 @@ rust/target
 zig-cache
 zig-out
 typescript/node_modules
+typescript/dist
 
 testdata/md-10.txt
 testdata/md-100.txt
