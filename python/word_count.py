@@ -5,7 +5,7 @@ class Stats:
     chars = 0
 
 
-def count_words(fname, bufsize=1024*4):
+def count(fname, bufsize=1024*4):
     """Count the number of lines, words and characters found in fname."""
     stats = Stats()
 

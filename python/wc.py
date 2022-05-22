@@ -56,7 +56,7 @@ def main():
     stats = word_count.Stats()
 
     for f in files:
-        s = word_count.count_words(f)
+        s = word_count.count(f)
         report(s, f)
 
         stats.lines += s.lines
@@ -67,4 +67,5 @@ def main():
         report(stats, "total")
 
 
-main()
+if __name__ == '__main__':
+    main()
