@@ -45,18 +45,18 @@ func Count(r io.Reader) (Stats, error) {
 		r := rune(b[0])
 
 		switch {
-		case unicode.IsLetter(r):
+		case r == '\n':
+			stats.Lines++
+			inWord = false
+
+		case unicode.IsSpace(r):
+			inWord = false
+
+		default:
 			if !inWord {
 				inWord = true
 				stats.Words++
 			}
-
-		case r == '\n':
-			stats.Lines++
-			fallthrough
-
-		default:
-			inWord = false
 		}
 	}
 

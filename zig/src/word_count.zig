@@ -30,13 +30,13 @@ pub fn count_lines(f: std.fs.File) !Stats {
         if (b == '\n') {
             inWord = false;
             s.lines += 1;
-        } else if ((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z')) {
+        } else if (b == ' ' or b == '\t' or b == '\r') {
+            inWord = false;
+        } else {
             if (!inWord) {
                 inWord = true;
                 s.words += 1;
             }
-        } else {
-            inWord = false;
         }
 
         s.chars += 1;
