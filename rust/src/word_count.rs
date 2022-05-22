@@ -43,17 +43,20 @@ pub fn count_file(fname: &str) -> std::io::Result<Stats> {
         stats.chars += 1;
 
         match ch {
-            'A'..='Z' | 'a'..='z' => {
+            '\n' => {
+                stats.lines += 1;
+                in_word = false;
+            }
+            // TODO: this does not encompass all unicode space characters
+            ' ' | '\t' | '\r' => {
+                in_word = false;
+            }
+            _ => {
                 if !in_word {
                     in_word = true;
                     stats.words += 1;
                 }
             }
-            '\n' => {
-                stats.lines += 1;
-                in_word = false;
-            }
-            _ => in_word = false,
         }
     }
 

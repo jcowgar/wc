@@ -16,15 +16,15 @@ def count(fname, bufsize=1024*4):
             for byte in bytes:
                 stats.chars += 1
 
-                if byte.isalpha():
+                if byte == '\n':
+                    stats.lines += 1
+                    inWord = False
+                elif byte.isspace():
+                    inWord = False
+                else:
                     if inWord is False:
                         inWord = True
                         stats.words += 1
-                elif byte == '\n':
-                    stats.lines += 1
-                    inWord = False
-                else:
-                    inWord = False
             bytes = f.read(bufsize)
 
     return stats
