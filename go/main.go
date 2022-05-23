@@ -25,24 +25,27 @@ type Stats struct {
 
 // Count returns the Stats for the io.Reader.
 func Count(r io.Reader) (Stats, error) {
+	const bufferSize int = 4 * 1024
+
 	r = bufio.NewReader(r)
-	b := []byte{0}
+	b := make([]byte, bufferSize, bufferSize)
 
 	stats := Stats{}
 
 	inWord := false
 
 	for {
-		_, e := r.Read(b)
+		bytesRead, e := r.Read(b)
 		if e == io.EOF {
 			break
 		} else if e != nil {
 			return Stats{}, fmt.Errorf("failure during read: %w", e)
 		}
 
+		for byteIndex := 0; byteIndex < bytesRead; byteIndex++ {
 		stats.Chars++
 
-		r := rune(b[0])
+			r := rune(b[byteIndex])
 
 		switch {
 		case r == '\n':
@@ -58,6 +61,7 @@ func Count(r io.Reader) (Stats, error) {
 				stats.Words++
 			}
 		}
+	}
 	}
 
 	return stats, nil
