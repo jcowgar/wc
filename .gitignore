@@ -1,3 +1,4 @@
+# Language specific ignores
 go/wc
 go-routines/wc
 rust/target
@@ -7,10 +8,11 @@ typescript/node_modules
 typescript/dist
 __pycache__
 c/wc
-
-testdata/md-10.txt
-testdata/md-100.txt
-testdata/md-1000.txt
 *.xojo_uistate
 xojo/Builds - wc
 xojo/wc.debug
+
+# Generated test data ignores
+testdata/md-10.txt
+testdata/md-100.txt
+testdata/md-1000.txt
