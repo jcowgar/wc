@@ -33,14 +33,18 @@ Inherits ConsoleApplication
 		    var path as string = paths( i )
 		    var file as FolderItem = files( i )
 		    
-		    var stats as WordCounter.Stats
-		    if file is nil then
-		      stats = WordCounter.Count( stdin )
-		    elseif IsOnlyLines then
-		      stats = WordCounter.CountLines( file )
+		    var reader as Readable
+		     if file is nil then
+		      reader = stdin
 		    else
-		      var bs as BinaryStream = BinaryStream.Open( file, false )
-		      stats = WordCounter.Count( bs )
+		      reader = BinaryStream.Open( file, false )
+		    end if
+		    
+		    var stats as WordCounter.Stats
+		    if IsOnlyLines then
+		      stats = WordCounter.CountLines( reader )
+		    else
+		      stats = WordCounter.Count( reader )
 		    end if
 		    
 		    PrintStats stats, path

@@ -9,7 +9,6 @@ Protected Module WordCounter
 		    #pragma StackOverflowChecking false
 		  #endif
 		  
-		  const kBufferSize as integer = 32 * 1024
 		  var buffer as new MemoryBlock( kBufferSize )
 		  var p as ptr = buffer
 		  
@@ -67,15 +66,24 @@ Protected Module WordCounter
 		End Function
 	#tag EndMethod
 
-	#tag Method, Flags = &h0
-		Function CountLines(f As FolderItem) As WordCounter.Stats
-		  var tis as TextInputStream = TextInputStream.Open( f )
+	#tag Method, Flags = &h1
+		Protected Function CountLines(reader As Readable) As WordCounter.Stats
+		  #if not DebugBuild
+		    #pragma BackgroundTasks false
+		    #pragma BoundsChecking false
+		    #pragma NilObjectChecking false
+		    #pragma StackOverflowChecking false
+		  #endif
 		  
 		  var count as integer 
 		  
-		  while not tis.EndOfFile
-		    call tis.ReadLine
-		    count = count + 1
+		  while not reader.EndOfFile
+		    var data as string = reader.Read( kBufferSize )
+		    if data = "" then
+		      exit
+		    end if
+		    
+		    count = count + data.CountFields( &u0A ) - 1
 		  wend
 		  
 		  var stats as new WordCounter.Stats
@@ -84,6 +92,10 @@ Protected Module WordCounter
 		  
 		End Function
 	#tag EndMethod
+
+
+	#tag Constant, Name = kBufferSize, Type = Double, Dynamic = False, Default = \"32768", Scope = Protected
+	#tag EndConstant
 
 
 End Module
