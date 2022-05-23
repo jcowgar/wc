@@ -75,6 +75,9 @@ Protected Module WordCounter
 		    #pragma StackOverflowChecking false
 		  #endif
 		  
+		  var buffer as new MemoryBlock( kBufferSize )
+		  var p as ptr = buffer
+		  
 		  var count as integer 
 		  
 		  while not reader.EndOfFile
@@ -83,7 +86,14 @@ Protected Module WordCounter
 		      exit
 		    end if
 		    
-		    count = count + data.CountFields( &u0A ) - 1
+		    buffer.StringValue( 0, data.Bytes ) = data
+		    
+		    var lastIndex as integer = data.Bytes - 1
+		    for byteIndex as integer = 0 to lastIndex
+		      if p.Byte( byteIndex ) = &h0A then
+		        count = count + 1
+		      end if
+		    next
 		  wend
 		  
 		  var stats as new WordCounter.Stats
