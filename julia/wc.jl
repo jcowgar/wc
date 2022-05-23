@@ -1,3 +1,9 @@
+using Printf
+
+showLines = false
+showWords = false
+showChars = false
+
 mutable struct Stats
     lines
     words
@@ -35,7 +41,52 @@ function count_words(fname::String)::Stats
     return s
 end
 
-s = count_words("../testdata/mobydick.txt")
+function report(s, label)
+    if showLines
+        @printf("%7d", s.lines)
+    end
+    if showWords
+        @printf(" %7d", s.words)
+    end
+    if showChars
+        @printf(" %7d", s.chars)
+    end
 
-show(s)
+    @printf(" %s\n", label)
+end
+
+total = Stats()
+fileCount = 0
+
+for arg in ARGS
+    if arg == "-l"
+        global showLines = true
+        continue
+    elseif arg == "-w"
+        global showWords = true
+        continue
+    elseif arg == "-m"
+        global showChars = true
+        continue
+    end
+
+    if showLines == false && showWords == false && showChars == false
+        showLines = true
+        showWords = true
+        showChars = true
+    end
+
+    global fileCount += 1
+    s = count_words(arg)
+
+    report(s, arg)
+
+    total.lines += s.lines
+    total.words += s.words
+    total.chars += s.chars
+end
+
+if fileCount > 1
+    report(total, "total")
+end
 
