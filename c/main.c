@@ -55,11 +55,9 @@ void word_count(char *fname, Stats *stats) {
 				stats->lines++;
 			} else if (isspace(ch)) {
 				inWord = 0;
-			} else {
-				if (inWord == 0) {
-					inWord = 1;
-					stats->words++;
-				}
+			} else if (inWord == 0) {
+				inWord = 1;
+				stats->words++;
 			}
 		}
 	}

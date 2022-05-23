@@ -21,10 +21,9 @@ def count(fname, bufsize=1024*4):
                     inWord = False
                 elif byte.isspace():
                     inWord = False
-                else:
-                    if inWord is False:
-                        inWord = True
-                        stats.words += 1
+                elif inWord is False:
+                    inWord = True
+                    stats.words += 1
             bytes = f.read(bufsize)
 
     return stats
