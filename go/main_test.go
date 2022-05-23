@@ -21,9 +21,9 @@ func TestCount(t *testing.T) {
 			false,
 		},
 		{
-			"2 words because of punctuation",
+			"1 word with punctuation",
 			"Hello.World",
-			Stats{Lines: 0, Words: 2, Chars: 11},
+			Stats{Lines: 0, Words: 1, Chars: 11},
 			false,
 		},
 	}
@@ -61,7 +61,7 @@ func TestCountFile(t *testing.T) {
 		{
 			"moby dick",
 			"../testdata/mobydick.txt",
-			Stats{Lines: 15603, Words: 112151, Chars: 643210},
+			Stats{Lines: 15603, Words: 115314, Chars: 643210},
 			false,
 		},
 	}
