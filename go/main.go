@@ -1,11 +1,9 @@
 package wc
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
-	"unicode"
 )
 
 // Stats tracks the Character, Word and Line count.
@@ -25,46 +23,52 @@ type Stats struct {
 
 // Count returns the Stats for the io.Reader.
 func Count(r io.Reader) (Stats, error) {
-	const bufferSize int = 4 * 1024
+	const bufferSize int = 16 * 1024
+	var lines, words, chars int
+	var inWord bool
 
-	r = bufio.NewReader(r)
-	b := make([]byte, bufferSize, bufferSize)
-
-	stats := Stats{}
-
-	inWord := false
+	buf := make([]byte, bufferSize)
 
 	for {
-		bytesRead, e := r.Read(b)
-		if e == io.EOF {
-			break
-		} else if e != nil {
+		bytesRead, e := r.Read(buf)
+		if e != nil {
+			if e == io.EOF {
+				break
+			}
+
 			return Stats{}, fmt.Errorf("failure during read: %w", e)
 		}
 
-		for byteIndex := 0; byteIndex < bytesRead; byteIndex++ {
-		stats.Chars++
+		chars += bytesRead
 
-			r := rune(b[byteIndex])
+		for _, b := range buf[:bytesRead] {
+			switch {
+			// Optimize for most likely case (ASCII)
+			case b > 32 && b <= 127:
+				if !inWord {
+					inWord = true
+					words++
+				}
 
-		switch {
-		case r == '\n':
-			stats.Lines++
-			inWord = false
+			case b == '\n':
+				inWord = false
+				lines++
 
-		case unicode.IsSpace(r):
-			inWord = false
+			case b <= 32, b == 0x85, b == 0xa0:
+				inWord = false
 
-		default:
-			if !inWord {
-				inWord = true
-				stats.Words++
+			// Leave even though first switch condition is duplicate. This will
+			// catch non-standard Unicode situations.
+			default:
+				if !inWord {
+					inWord = true
+					words++
+				}
 			}
 		}
 	}
-	}
 
-	return stats, nil
+	return Stats{Lines: lines, Words: words, Chars: chars}, nil
 }
 
 // CountFile returns the Stats for filename.
