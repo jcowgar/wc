@@ -54,6 +54,9 @@ func Count(r io.Reader) (Stats, error) {
 				inWord = false
 				lines++
 
+			case b == 0:
+				// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
+
 			case b <= 32, b == 0x85, b == 0xa0:
 				inWord = false
 
