@@ -33,6 +33,19 @@ Inherits ConsoleApplication
 		    var path as string = paths( i )
 		    var file as FolderItem = files( i )
 		    
+		    var stats as WordCounter.Stats
+		    
+		    if file isa object and IsOnlyBytes then
+		      //
+		      // We can short circuit this
+		      //
+		      stats = new WordCounter.Stats
+		      stats.Bytes = file.Length
+		      
+		      PrintStats stats, path
+		      continue
+		    end if
+		    
 		    var reader as Readable
 		     if file is nil then
 		      reader = stdin
@@ -40,7 +53,6 @@ Inherits ConsoleApplication
 		      reader = BinaryStream.Open( file, false )
 		    end if
 		    
-		    var stats as WordCounter.Stats
 		    if IsOnlyLines then
 		      stats = WordCounter.CountLines( reader )
 		    else
@@ -159,6 +171,16 @@ Inherits ConsoleApplication
 	#tag Property, Flags = &h21
 		Private CountWords As Boolean = True
 	#tag EndProperty
+
+	#tag ComputedProperty, Flags = &h21
+		#tag Getter
+			Get
+			  return CountBytes and not (CountCharacters or CountWords or CountLines )
+			  
+			End Get
+		#tag EndGetter
+		Private IsOnlyBytes As Boolean
+	#tag EndComputedProperty
 
 	#tag ComputedProperty, Flags = &h21
 		#tag Getter
