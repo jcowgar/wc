@@ -4,9 +4,9 @@ const std = @import("std");
 pub const Stats = struct {
     const Self = @This();
 
-    lines: u64,
-    words: u64,
-    chars: u64,
+    lines: usize,
+    words: usize,
+    chars: usize,
 
     pub fn empty() Self {
         return .{ .lines = 0, .words = 0, .chars = 0 };
@@ -16,10 +16,13 @@ pub const Stats = struct {
 /// Count the number of lines, words and characters in `f`.
 pub fn count_lines(f: std.fs.File) !Stats {
     var byteBuf = std.mem.zeroes([16 * 1024]u8);
-    var s = Stats.empty();
     var r = f.reader();
+
+    var bytesRead: usize = 0;
     var inWord = false;
-    var bytesRead: u64 = 0;
+    var lines: usize = 0;
+    var words: usize = 0;
+    var chars: usize = 0;
 
     while (true) {
         bytesRead = try r.read(&byteBuf);
@@ -27,20 +30,38 @@ pub fn count_lines(f: std.fs.File) !Stats {
             break;
         }
 
-        s.chars += bytesRead;
+        chars += bytesRead;
 
         for (byteBuf[0..bytesRead]) |b| {
-            if (b == '\n') {
-                inWord = false;
-                s.lines += 1;
-            } else if (b <= 32) {
-                inWord = false;
-            } else if (!inWord) {
-                inWord = true;
-                s.words += 1;
+            switch (b) {
+                33...127 => {
+                    if (!inWord) {
+                        inWord = true;
+                        words += 1;
+                    }
+                },
+                10 => {
+                    inWord = false;
+                    lines += 1;
+                },
+                1...9, 11...32 => {
+                    inWord = false;
+                },
+                0 => {},
+                else => {
+                    if (!inWord) {
+                        inWord = true;
+                        words += 1;
+                    }
+                },
             }
         }
     }
+
+    var s = Stats.empty();
+    s.lines = lines;
+    s.words = words;
+    s.chars = chars;
 
     return s;
 }

@@ -50,11 +50,18 @@ void word_count(char *fname, Stats *stats) {
 
 			stats->chars++;
 
-			if (ch == '\n') {
+			if (ch > 32 && ch <= 127) {
+				if (inWord == 0) {
+					inWord = 1;
+					stats->words++;
+				}
+			} else if (ch == '\n') {
 				inWord = 0;
 				stats->lines++;
-			} else if (isspace(ch)) {
+			} else if (ch == ' ' || ch == 0xA5 || ch == 0xA0) {
 				inWord = 0;
+			} else if (ch == 0) {
+				// Ignore
 			} else if (inWord == 0) {
 				inWord = 1;
 				stats->words++;

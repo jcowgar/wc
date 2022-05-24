@@ -31,12 +31,14 @@ function count_words(fname::String)::Stats
                     inWord = true
                     words += 1
                 end
-            elseif b == 0x0A
+            elseif b == 32
+                inWord = false
+            elseif b == 10
                 lines += 1
                 inWord = false
             elseif b == 0
                 # Ignore NULLs
-            elseif b <= 0x20 || b == 0xA0 || b == 0x85
+            elseif b <= 32 || b == 0xA0 || b == 0x85
                 inWord = false
             elseif !inWord
                 inWord = true
