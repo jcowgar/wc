@@ -14,29 +14,43 @@ end
 
 function count_words(fname::String)::Stats
     inWord = false
-    s = Stats()
-
     io = open(fname, "r")
+    buf::Array{UInt8,1} = zeros(UInt8, 16 * 1024)
+
+    chars = 0
+    words = 0
+    lines = 0
 
     while !eof(io)
-        bytes = read(io, 1024 * 16)
+        bytesRead = readbytes!(io, buf, sizeof(buf))
+        chars += bytesRead
 
-        for b in bytes
-            s.chars += 1
-
-            if b == 0x0A
-                s.lines += 1
+        for b in buf[1:bytesRead]
+            if b > 32 && b <= 127
+                if !inWord
+                    inWord = true
+                    words += 1
+                end
+            elseif b == 0x0A
+                lines += 1
                 inWord = false
+            elseif b == 0
+                # Ignore NULLs
             elseif b <= 0x20 || b == 0xA0 || b == 0x85
                 inWord = false
             elseif !inWord
                 inWord = true
-                s.words += 1
+                words += 1
             end
         end
     end
 
     close(io)
+
+    s = Stats()
+    s.lines = lines
+    s.words = words
+    s.chars = chars
 
     return s
 end
@@ -89,4 +103,5 @@ end
 if fileCount > 1
     report(total, "total")
 end
+
 
