@@ -34,6 +34,10 @@ func isAnyWhitespace(b byte) bool {
 
 // CountSlice gets stats from a slice and increments the given Stats
 // in a thread-safe way.
+//
+// isAlreadyInWord will not count the first word it encounters before any whitespace.
+//
+// into is a reference to the Stats that will be updated.
 func CountSlice(data []byte, isAlreadyInWord bool, into *Stats) {
 	var lines, words uint64
 
