@@ -119,21 +119,24 @@ func Count(source io.Reader) (Stats, error) {
 	// Track whether the last block started in a word.
 	inWord := false
 
-	// Read from the buffer.
+	// Read the data in blocks and ship them off
+	// to new or existing workers. We will reuse workerData
+	// through the channels for performance.
 	for {
 		// Create or fetch the workerData, and start a new job if needed.
 		var data workerData
 
 		if runningJobs < maxJobs {
+			// We need a new job and new data.
 			data = workerData{Buf: make([]byte, bufferSize), BytesRead: 0, InWord: inWord}
 
+			// Start the worker.
 			workerWg.Add(1)
-
 			go countWorker(workerWg, dataChannel, returnChannel, masterStats)
 
 			runningJobs++
 		} else {
-			// Reuse data.
+			// Fetch data for reuse.
 			data = *<-returnChannel
 		}
 
@@ -149,7 +152,7 @@ func Count(source io.Reader) (Stats, error) {
 			return Stats{}, fmt.Errorf("failure during read: %w", err)
 		}
 
-		// Fill in data.
+		// Fill in data properties.
 		data.BytesRead = uint64(bytesRead)
 		data.InWord = inWord
 
