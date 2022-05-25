@@ -2,8 +2,8 @@ use clap::Parser;
 
 mod word_count;
 
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[derive(Parser)]
+#[clap(author, version, about = "Count lines, words and characters in files.")]
 struct Args {
     /// Output number of lines
     #[clap(short = 'l', long = "lines")]
@@ -31,11 +31,7 @@ fn main() {
         args.show_chars = true;
     }
 
-    let mut total_stats = word_count::Stats {
-        lines: 0,
-        words: 0,
-        chars: 0,
-    };
+    let mut total_stats = word_count::Stats::default();
 
     for fname in &args.files {
         match word_count::count_file(fname) {
