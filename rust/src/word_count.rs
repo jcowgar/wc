@@ -2,7 +2,7 @@ use std::{fs::File, io::Read, iter::Sum, path::Path, sync::mpsc};
 use workerpool::{Pool, Worker};
 
 /// Track the statistics of a single file count.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Stats {
     /// Number of lines counted.
     pub lines: usize,
@@ -12,16 +12,6 @@ pub struct Stats {
 
     /// Number of characters counted.
     pub chars: usize,
-}
-
-impl Default for Stats {
-    fn default() -> Self {
-        Stats {
-            lines: 0,
-            words: 0,
-            chars: 0,
-        }
-    }
 }
 
 impl Sum for Stats {
@@ -80,25 +70,20 @@ static BUFFER_SIZE: usize = 16 * 1024;
 
 /// Count the number of lines, words and characters in `fname`.
 pub fn count_file(fname: &str) -> std::io::Result<Stats> {
-    let n_workers = 6;
+    let n_workers = 16;
     let mut read_size: usize;
     let mut jobs: usize = 0;
     let pool = Pool::<Stats>::new(n_workers);
     let (tx, rx) = mpsc::channel();
-    let mut file = match File::open(Path::new(fname)) {
-        Err(err) => panic!("couldn't open file: {}", err),
-        Ok(value) => value,
-    };
+    let mut file = File::open(Path::new(fname))
+        .unwrap_or_else(|e| panic!("couldn't open file: {}", e));
 
     loop {
-        let mut buf: Vec<u8> = Vec::with_capacity(BUFFER_SIZE);
-        buf.resize(BUFFER_SIZE, 0);
-
-        read_size = match file.read(&mut buf) {
-            Ok(r) => r,
-            Err(err) => panic!("{}", err),
-        };
-
+        let mut buf = vec![0; BUFFER_SIZE];
+        read_size = file.read(&mut buf).unwrap_or_else(|e| panic!("{}", e));
+        if read_size < BUFFER_SIZE {
+            buf.truncate(read_size);
+        }
         pool.execute_to(tx.clone(), buf);
 
         jobs += 1;
