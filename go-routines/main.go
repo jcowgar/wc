@@ -52,15 +52,15 @@ func CountSlice(data []byte, isAlreadyInWord bool, into *Stats) {
 				words++
 			}
 
-		case thisByte == '\n':
+		case isAnyWhitespace(thisByte):
+			if thisByte == '\n' {
+				lines++
+			}
+
 			inWord = false
-			lines++
 
 		case thisByte == 0:
 			// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
-
-		case isAnyWhitespace(thisByte):
-			inWord = false
 
 		// Leave even though first switch condition is duplicate. This will
 		// catch non-standard Unicode situations.
