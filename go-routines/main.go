@@ -95,11 +95,11 @@ func Count(source io.Reader) (Stats, error) {
 
 	// Read from the buffer.
 	for {
-		// Set up the workerData.
-		data := workerData{Buf: make([]byte, bufferSize), InWord: inWord, BytesRead: 0}
 
 		// Read a block.
-		bytesRead, err := source.Read(data.Buf)
+		buffer := make([]byte, bufferSize)
+
+		bytesRead, err := source.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
 				// We're done.
@@ -110,11 +110,11 @@ func Count(source io.Reader) (Stats, error) {
 			return Stats{}, fmt.Errorf("failure during read: %w", err)
 		}
 
-		// Record the values
-		data.BytesRead = uint64(bytesRead)
+		// Set up the workerData.
+		data := workerData{Buf: buffer, InWord: inWord, BytesRead: uint64(bytesRead)}
 
 		// Save the inWord value for the next block.
-		inWord = !isAnyWhitespace(data.Buf[bytesRead-1])
+		inWord = !isAnyWhitespace(buffer[bytesRead-1])
 
 		// Start the worker.
 		workerWg.Add(1)
