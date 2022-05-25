@@ -1,66 +1,77 @@
-use std::{
-    char,
-    fs::File,
-    io::{BufReader, Read},
-    path::Path,
-};
+use std::{fs::File, io::Read, path::Path};
 
 /// Track the statistics of a single file count.
 pub struct Stats {
     /// Number of lines counted.
-    pub lines: i32,
+    pub lines: usize,
 
     /// Number of words counted.
-    pub words: i32,
+    pub words: usize,
 
     /// Number of characters counted.
-    pub chars: i32,
+    pub chars: usize,
 }
+
+static BUFFER_SIZE: usize = 16 * 1024;
 
 /// Count the number of lines, words and characters in `fname`.
 pub fn count_file(fname: &str) -> std::io::Result<Stats> {
     let path = Path::new(fname);
 
-    let file = match File::open(path) {
+    let mut file = match File::open(path) {
         Err(err) => panic!("couldn't open {}: {}", fname, err),
         Ok(file) => file,
     };
 
-    let mut stats = Stats {
-        lines: 0,
-        words: 0,
-        chars: 0,
-    };
+    let mut lines = 0;
+    let mut words = 0;
+    let mut chars = 0;
+
+    let mut buf: Vec<u8> = Vec::with_capacity(BUFFER_SIZE);
+    buf.resize(BUFFER_SIZE, 0);
 
     let mut in_word = false;
-    let reader = BufReader::new(file);
-    for value in reader.bytes() {
-        let ch = match value {
-            Err(err) => panic!("could not read: {}", err),
-            Ok(b) => b as char,
-        };
+    let mut read_size = match file.read(&mut buf) {
+        Ok(r) => r,
+        Err(err) => panic!("{}", err),
+    };
 
-        stats.chars += 1;
+    while read_size > 0 {
+        chars += read_size;
 
-        match ch {
-            '\n' => {
-                stats.lines += 1;
-                in_word = false;
-            }
-            // TODO: this does not encompass all unicode space characters
-            ' ' | '\t' | '\r' => {
-                in_word = false;
-            }
-            _ => {
+        for i in 0..read_size {
+            let ch = buf[i];
+
+            if ch > 32 && ch <= 127 {
                 if !in_word {
                     in_word = true;
-                    stats.words += 1;
+                    words += 1;
                 }
+            } else if ch == 0 {
+                // ignore
+            } else if ch <= 32 {
+                if ch == 10 {
+                    lines += 1;
+                }
+
+                in_word = false;
+            } else if !in_word {
+                in_word = true;
+                words += 1;
             }
         }
+
+        read_size = match file.read(&mut buf) {
+            Ok(r) => r,
+            Err(err) => panic!("{}", err),
+        };
     }
 
-    Ok(stats)
+    Ok(Stats {
+        lines,
+        words,
+        chars,
+    })
 }
 
 #[cfg(test)]
