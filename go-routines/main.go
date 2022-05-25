@@ -112,15 +112,14 @@ func Count(source io.Reader) (Stats, error) {
 
 		// Record the values
 		data.BytesRead = uint64(bytesRead)
-		nextInWord := !isAnyWhitespace(data.Buf[bytesRead-1])
+
+		// Save the inWord value for the next block.
+		inWord = !isAnyWhitespace(data.Buf[bytesRead-1])
 
 		// Start the worker.
 		workerWg.Add(1)
 
 		go countWorker(workerWg, &data, masterStats)
-
-		// Save the inWord value for the next block.
-		inWord = nextInWord
 	}
 
 	// Wait for the workers to finish.
