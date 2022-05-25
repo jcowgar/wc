@@ -30,8 +30,7 @@ func isAnyWhitespace(b byte) bool {
 	return (b > 0 && b <= 32) || b == 0xA0 || b == 0x85
 }
 
-// Set up the workers
-
+// Set up the workers.
 type workerData struct {
 	Buf       []byte
 	BytesRead uint64
@@ -40,28 +39,28 @@ type workerData struct {
 
 // countWorker will run as a job to count the given data and
 // increment the values in the given stats.
-func countWorker(wg *sync.WaitGroup, data *workerData, stats *Stats) {
+func countWorker(waitGroup *sync.WaitGroup, data *workerData, stats *Stats) {
 	inWord := data.InWord
 
 	var lines, words uint64
 
-	for _, b := range data.Buf[:data.BytesRead] {
+	for _, thisByte := range data.Buf[:data.BytesRead] {
 		switch {
 		// Optimize for most likely case (ASCII)
-		case b > 32 && b <= 127:
+		case thisByte > 32 && thisByte <= 127:
 			if !inWord {
 				inWord = true
 				words++
 			}
 
-		case b == '\n':
+		case thisByte == '\n':
 			inWord = false
 			lines++
 
-		case b == 0:
+		case thisByte == 0:
 			// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
 
-		case isAnyWhitespace(b):
+		case isAnyWhitespace(thisByte):
 			inWord = false
 
 		// Leave even though first switch condition is duplicate. This will
@@ -80,11 +79,11 @@ func countWorker(wg *sync.WaitGroup, data *workerData, stats *Stats) {
 	atomic.AddUint64(&stats.Chars, data.BytesRead)
 
 	// ... and we're done.
-	wg.Done()
+	waitGroup.Done()
 }
 
 // Count returns the Stats for the io.Reader.
-func Count(r io.Reader) (Stats, error) {
+func Count(source io.Reader) (Stats, error) {
 	// Set up the masterStats.
 	masterStats := &Stats{}
 
@@ -100,7 +99,7 @@ func Count(r io.Reader) (Stats, error) {
 		data := workerData{Buf: make([]byte, bufferSize), InWord: inWord, BytesRead: 0}
 
 		// Read a block.
-		bytesRead, err := r.Read(data.Buf)
+		bytesRead, err := source.Read(data.Buf)
 		if err != nil {
 			if err == io.EOF {
 				// We're done.
@@ -132,11 +131,11 @@ func Count(r io.Reader) (Stats, error) {
 
 // CountFile returns the Stats for filename.
 func CountFile(filename string) (Stats, error) {
-	fh, err := os.Open(filename)
+	file, err := os.Open(filename)
 	if err != nil {
 		return Stats{}, fmt.Errorf("failed to open file: %w", err)
 	}
-	defer fh.Close()
+	defer file.Close()
 
-	return Count(fh)
+	return Count(file)
 }
