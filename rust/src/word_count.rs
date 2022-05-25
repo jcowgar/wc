@@ -26,9 +26,7 @@ pub fn count_file(fname: &str) -> std::io::Result<Stats> {
     let mut lines = 0;
     let mut words = 0;
     let mut chars = 0;
-
-    let mut buf: Vec<u8> = Vec::with_capacity(BUFFER_SIZE);
-    buf.resize(BUFFER_SIZE, 0);
+    let mut buf = vec![0; BUFFER_SIZE];
 
     let mut in_word = false;
     let mut read_size = match file.read(&mut buf) {

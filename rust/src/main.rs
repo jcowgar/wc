@@ -38,14 +38,14 @@ fn main() {
     };
 
     for fname in &args.files {
-        match word_count::count_file(&fname) {
+        match word_count::count_file(fname) {
             Err(err) => panic!("count_file failed: {}", err),
             Ok(stats) => {
                 total_stats.lines += stats.lines;
                 total_stats.words += stats.words;
                 total_stats.chars += stats.chars;
 
-                report_stats(&args, stats, &fname);
+                report_stats(&args, stats, fname);
             }
         }
     }
