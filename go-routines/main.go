@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"sync"
 	"sync/atomic"
 )
@@ -41,65 +40,51 @@ type workerData struct {
 
 // countWorker will run as a job to count the data given in the workerData channel.
 // It will return its Stats to the statChannel.
-func countWorker(wg *sync.WaitGroup, dataChannel <-chan *workerData, stats *Stats) {
-	for data := range dataChannel {
-		inWord := data.InWord
+func countWorker(wg *sync.WaitGroup, data *workerData, stats *Stats) {
+	inWord := data.InWord
 
-		var lines, words uint64
+	var lines, words uint64
 
-		for _, b := range data.Buf[:data.BytesRead] {
-			switch {
-			// Optimize for most likely case (ASCII)
-			case b > 32 && b <= 127:
-				if !inWord {
-					inWord = true
-					words++
-				}
+	for _, b := range data.Buf[:data.BytesRead] {
+		switch {
+		// Optimize for most likely case (ASCII)
+		case b > 32 && b <= 127:
+			if !inWord {
+				inWord = true
+				words++
+			}
 
-			case b == '\n':
-				inWord = false
-				lines++
+		case b == '\n':
+			inWord = false
+			lines++
 
-			case b == 0:
-				// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
+		case b == 0:
+			// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
 
-			case isAnyWhitespace(b):
-				inWord = false
+		case isAnyWhitespace(b):
+			inWord = false
 
-			// Leave even though first switch condition is duplicate. This will
-			// catch non-standard Unicode situations.
-			default:
-				if !inWord {
-					inWord = true
-					words++
-				}
+		// Leave even though first switch condition is duplicate. This will
+		// catch non-standard Unicode situations.
+		default:
+			if !inWord {
+				inWord = true
+				words++
 			}
 		}
-
-		atomic.AddUint64(&stats.Lines, lines)
-		atomic.AddUint64(&stats.Words, words)
-		atomic.AddUint64(&stats.Chars, data.BytesRead)
 	}
+
+	atomic.AddUint64(&stats.Lines, lines)
+	atomic.AddUint64(&stats.Words, words)
+	atomic.AddUint64(&stats.Chars, data.BytesRead)
 
 	wg.Done()
 }
 
 // Count returns the Stats for the io.Reader.
 func Count(r io.Reader) (Stats, error) {
-	// Figure out the max maxJobs.
-	maxJobs := runtime.GOMAXPROCS(0)
-	if maxJobs < 1 {
-		maxJobs = 1
-	}
-
-	// Track how many jobs we've started.
-	var runningJobs int
-
 	// Set up the masterStats.
 	masterStats := &Stats{}
-
-	// Set up the channel.
-	dataChannel := make(chan *workerData, maxJobs)
 
 	// Create the workerWg.
 	workerWg := &sync.WaitGroup{}
@@ -109,13 +94,6 @@ func Count(r io.Reader) (Stats, error) {
 
 	// Read from the buffer.
 	for {
-		// See if we need another job.
-		if runningJobs < maxJobs {
-			workerWg.Add(1)
-			go countWorker(workerWg, dataChannel, masterStats)
-			runningJobs++
-		}
-
 		data := workerData{Buf: make([]byte, bufferSize), InWord: inWord, BytesRead: 0}
 
 		bytesRead, e := r.Read(data.Buf)
@@ -130,12 +108,13 @@ func Count(r io.Reader) (Stats, error) {
 		data.BytesRead = uint64(bytesRead)
 		nextInWord := !isAnyWhitespace(data.Buf[bytesRead-1])
 
-		dataChannel <- &data
+		workerWg.Add(1)
+		go countWorker(workerWg, &data, masterStats)
+
 		inWord = nextInWord
 	}
 
 	// Wait for the workers to finish.
-	close(dataChannel)
 	workerWg.Wait()
 
 	return *masterStats, nil
