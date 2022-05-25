@@ -58,11 +58,7 @@ impl Worker for Stats {
             }
         }
 
-        Stats {
-            lines,
-            words,
-            chars,
-        }
+        Stats { lines, words, chars }
     }
 }
 
