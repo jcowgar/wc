@@ -38,7 +38,7 @@ fn main() {
     };
 
     for fname in &args.files {
-        match word_count::count_file(&fname) {
+        match word_count::count_file(fname) {
             Err(err) => panic!("count_file failed: {}", err),
             Ok(stats) => {
                 total_stats.lines += stats.lines;

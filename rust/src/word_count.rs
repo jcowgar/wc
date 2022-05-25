@@ -1,6 +1,8 @@
-use std::{fs::File, io::Read, path::Path};
+use std::{fs::File, io::Read, iter::Sum, path::Path, sync::mpsc};
+use workerpool::{Pool, Worker};
 
 /// Track the statistics of a single file count.
+#[derive(Debug)]
 pub struct Stats {
     /// Number of lines counted.
     pub lines: usize,
@@ -12,36 +14,41 @@ pub struct Stats {
     pub chars: usize,
 }
 
-static BUFFER_SIZE: usize = 16 * 1024;
+impl Default for Stats {
+    fn default() -> Self {
+        Stats {
+            lines: 0,
+            words: 0,
+            chars: 0,
+        }
+    }
+}
 
-/// Count the number of lines, words and characters in `fname`.
-pub fn count_file(fname: &str) -> std::io::Result<Stats> {
-    let path = Path::new(fname);
+impl Sum for Stats {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let mut result = Stats::default();
 
-    let mut file = match File::open(path) {
-        Err(err) => panic!("couldn't open {}: {}", fname, err),
-        Ok(file) => file,
-    };
+        for s in iter {
+            result.lines += s.lines;
+            result.words += s.words;
+            result.chars += s.chars;
+        }
 
-    let mut lines = 0;
-    let mut words = 0;
-    let mut chars = 0;
+        result
+    }
+}
 
-    let mut buf: Vec<u8> = Vec::with_capacity(BUFFER_SIZE);
-    buf.resize(BUFFER_SIZE, 0);
+impl Worker for Stats {
+    type Input = Vec<u8>;
+    type Output = Stats;
 
-    let mut in_word = false;
-    let mut read_size = match file.read(&mut buf) {
-        Ok(r) => r,
-        Err(err) => panic!("{}", err),
-    };
+    fn execute(&mut self, inp: Self::Input) -> Self::Output {
+        let chars = inp.len();
+        let mut words: usize = 0;
+        let mut lines: usize = 0;
+        let mut in_word = false;
 
-    while read_size > 0 {
-        chars += read_size;
-
-        for i in 0..read_size {
-            let ch = buf[i];
-
+        for ch in inp {
             if ch > 32 && ch <= 127 {
                 if !in_word {
                     in_word = true;
@@ -61,32 +68,47 @@ pub fn count_file(fname: &str) -> std::io::Result<Stats> {
             }
         }
 
+        Stats {
+            lines,
+            words,
+            chars,
+        }
+    }
+}
+
+static BUFFER_SIZE: usize = 16 * 1024;
+
+/// Count the number of lines, words and characters in `fname`.
+pub fn count_file(fname: &str) -> std::io::Result<Stats> {
+    let n_workers = 6;
+    let mut read_size: usize;
+    let mut jobs: usize = 0;
+    let pool = Pool::<Stats>::new(n_workers);
+    let (tx, rx) = mpsc::channel();
+    let mut file = match File::open(Path::new(fname)) {
+        Err(err) => panic!("couldn't open file: {}", err),
+        Ok(value) => value,
+    };
+
+    loop {
+        let mut buf: Vec<u8> = Vec::with_capacity(BUFFER_SIZE);
+        buf.resize(BUFFER_SIZE, 0);
+
         read_size = match file.read(&mut buf) {
             Ok(r) => r,
             Err(err) => panic!("{}", err),
         };
+
+        pool.execute_to(tx.clone(), buf);
+
+        jobs += 1;
+
+        if read_size < BUFFER_SIZE {
+            break;
+        }
     }
 
-    Ok(Stats {
-        lines,
-        words,
-        chars,
-    })
-}
+    let output: Stats = rx.iter().take(jobs).sum();
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_count_file() {
-        let s = match count_file("../testdata/mobydick.txt") {
-            Err(err) => panic!("counting mobydick test data failed: {}", err),
-            Ok(s) => s,
-        };
-
-        assert_eq!(s.lines, 15603, "lines should be 15603 but is {}", s.lines);
-        assert_eq!(s.words, 112151, "words should be 112151 but is {}", s.words);
-        assert_eq!(s.chars, 643210, "chars should be 643210 but is {}", s.chars);
-    }
+    Ok(output)
 }
