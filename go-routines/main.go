@@ -32,6 +32,49 @@ func isAnyWhitespace(b byte) bool {
 	return (b > 0 && b <= 32) || b == 0xA0 || b == 0x85
 }
 
+// CountSlice gets stats from a slice and increments the given Stats
+// in a thread-safe way.
+func CountSlice(data []byte, isAlreadyInWord bool, into *Stats) {
+	var lines, words uint64
+
+	inWord := isAlreadyInWord
+
+	for _, thisByte := range data {
+		switch {
+		// Optimize for most likely case (ASCII)
+		case thisByte > 32 && thisByte <= 127:
+			if !inWord {
+				inWord = true
+				words++
+			}
+
+		case thisByte == '\n':
+			inWord = false
+			lines++
+
+		case thisByte == 0:
+			// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
+
+		case isAnyWhitespace(thisByte):
+			inWord = false
+
+		// Leave even though first switch condition is duplicate. This will
+		// catch non-standard Unicode situations.
+		default:
+			if !inWord {
+				inWord = true
+				words++
+			}
+		}
+	}
+
+	// Increment the stats.
+	bytesRead := len(data)
+	atomic.AddUint64(&into.Lines, lines)
+	atomic.AddUint64(&into.Words, words)
+	atomic.AddUint64(&into.Chars, uint64(bytesRead))
+}
+
 // Set up the workers.
 type workerData struct {
 	Buf       []byte
@@ -50,46 +93,10 @@ func countWorker(
 	stats *Stats,
 ) {
 	for data := range dataChannel {
-		inWord := data.InWord
-
-		var lines, words uint64
-
-		for _, thisByte := range data.Buf[:data.BytesRead] {
-			switch {
-			// Optimize for most likely case (ASCII)
-			case thisByte > 32 && thisByte <= 127:
-				if !inWord {
-					inWord = true
-					words++
-				}
-
-			case thisByte == '\n':
-				inWord = false
-				lines++
-
-			case thisByte == 0:
-				// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
-
-			case isAnyWhitespace(thisByte):
-				inWord = false
-
-			// Leave even though first switch condition is duplicate. This will
-			// catch non-standard Unicode situations.
-			default:
-				if !inWord {
-					inWord = true
-					words++
-				}
-			}
-		}
+		CountSlice(data.Buf[:data.BytesRead], data.InWord, stats)
 
 		// Return the workerData
 		returnChannel <- data
-
-		// Increment the stats.
-		atomic.AddUint64(&stats.Lines, lines)
-		atomic.AddUint64(&stats.Words, words)
-		atomic.AddUint64(&stats.Chars, data.BytesRead)
 	}
 
 	// ... and we're done.

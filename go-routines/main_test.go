@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gotest.tools/v3/assert"
 )
 
 func TestCount(t *testing.T) {
@@ -80,11 +82,56 @@ func TestCountFile(t *testing.T) {
 	}
 }
 
+func TestCountSlice(t *testing.T) {
+	type args struct {
+		data            []byte
+		isAlreadyInWord bool
+		into            Stats
+	}
+	tests := []struct {
+		name   string
+		args   args
+		expect Stats
+	}{
+		{"Two words", args{[]byte("this that"), false, Stats{}}, Stats{Lines: 0, Words: 2, Chars: 9}},
+		{"Two lines", args{[]byte("this that\nand the other\n"), false, Stats{}}, Stats{Lines: 2, Words: 5, Chars: 24}},
+		{"Starting in word", args{[]byte("a word"), true, Stats{}}, Stats{Lines: 0, Words: 1, Chars: 6}},
+		{"Unicode", args{[]byte("ü wórd"), false, Stats{}}, Stats{Lines: 0, Words: 2, Chars: uint64(len("ü wórd"))}},
+		{"Tab", args{[]byte("a\tword"), false, Stats{}}, Stats{Lines: 0, Words: 2, Chars: uint64(len("a word"))}},
+		{"Non-breaking space", args{
+			[]byte("a" + string(rune(0xA0)) + "word"),
+			false,
+			Stats{},
+		}, Stats{Lines: 0, Words: 2, Chars: uint64(len("a" + string(rune(0xA0)) + "word"))}},
+		{"Breaking space", args{
+			[]byte("a" + string(rune(0x85)) + "word"),
+			false,
+			Stats{},
+		}, Stats{Lines: 0, Words: 2, Chars: uint64(len("a" + string(rune(0x85)) + "word"))}},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			CountSlice(tt.args.data, tt.args.isAlreadyInWord, &tt.args.into)
+			assert.DeepEqual(t, tt.expect, tt.args.into)
+		})
+	}
+}
+
 func BenchmarkCountFile(b *testing.B) {
 	for i := 0; i < 1; i++ {
 		if _, err := CountFile("../testdata/md-1000.txt"); err != nil {
 			fmt.Println(err)
 			return
 		}
+	}
+}
+
+func BenchmarkCountSlice(b *testing.B) {
+	stats := Stats{}
+
+	for i := 0; i < b.N; i++ {
+		CountSlice([]byte("Some long string\nthat spans two lines\nor more\n"), false, &stats)
 	}
 }
