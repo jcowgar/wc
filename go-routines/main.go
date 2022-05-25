@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 )
@@ -38,45 +39,57 @@ type workerData struct {
 }
 
 // countWorker will run as a job to count the given data and
-// increment the values in the given stats.
-func countWorker(waitGroup *sync.WaitGroup, data *workerData, stats *Stats) {
-	inWord := data.InWord
+// increment the values in the given stats. It gets its data
+// through the dataChannel and returns it for reuse through
+// the returnChannel.
+func countWorker(
+	waitGroup *sync.WaitGroup,
+	dataChannel chan *workerData,
+	returnChannel chan *workerData,
+	stats *Stats,
+) {
+	for data := range dataChannel {
+		inWord := data.InWord
 
-	var lines, words uint64
+		var lines, words uint64
 
-	for _, thisByte := range data.Buf[:data.BytesRead] {
-		switch {
-		// Optimize for most likely case (ASCII)
-		case thisByte > 32 && thisByte <= 127:
-			if !inWord {
-				inWord = true
-				words++
-			}
+		for _, thisByte := range data.Buf[:data.BytesRead] {
+			switch {
+			// Optimize for most likely case (ASCII)
+			case thisByte > 32 && thisByte <= 127:
+				if !inWord {
+					inWord = true
+					words++
+				}
 
-		case thisByte == '\n':
-			inWord = false
-			lines++
+			case thisByte == '\n':
+				inWord = false
+				lines++
 
-		case thisByte == 0:
-			// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
+			case thisByte == 0:
+				// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
 
-		case isAnyWhitespace(thisByte):
-			inWord = false
+			case isAnyWhitespace(thisByte):
+				inWord = false
 
-		// Leave even though first switch condition is duplicate. This will
-		// catch non-standard Unicode situations.
-		default:
-			if !inWord {
-				inWord = true
-				words++
+			// Leave even though first switch condition is duplicate. This will
+			// catch non-standard Unicode situations.
+			default:
+				if !inWord {
+					inWord = true
+					words++
+				}
 			}
 		}
-	}
 
-	// Increment the stats.
-	atomic.AddUint64(&stats.Lines, lines)
-	atomic.AddUint64(&stats.Words, words)
-	atomic.AddUint64(&stats.Chars, data.BytesRead)
+		// Return the workerData
+		returnChannel <- data
+
+		// Increment the stats.
+		atomic.AddUint64(&stats.Lines, lines)
+		atomic.AddUint64(&stats.Words, words)
+		atomic.AddUint64(&stats.Chars, data.BytesRead)
+	}
 
 	// ... and we're done.
 	waitGroup.Done()
@@ -87,19 +100,45 @@ func Count(source io.Reader) (Stats, error) {
 	// Set up the masterStats.
 	masterStats := &Stats{}
 
+	// Number of cores.
+	maxJobs := runtime.GOMAXPROCS(0)
+	if maxJobs < 1 {
+		maxJobs = 1
+	}
+
 	// Create the workerWg.
 	workerWg := &sync.WaitGroup{}
+
+	// Create the channels.
+	dataChannel := make(chan *workerData, maxJobs)
+	returnChannel := make(chan *workerData, maxJobs)
+
+	// Track the running jobs.
+	runningJobs := 0
 
 	// Track whether the last block started in a word.
 	inWord := false
 
 	// Read from the buffer.
 	for {
+		// Create or fetch the workerData, and start a new job if needed.
+		var data workerData
+
+		if runningJobs < maxJobs {
+			data = workerData{Buf: make([]byte, bufferSize), BytesRead: 0, InWord: inWord}
+
+			workerWg.Add(1)
+
+			go countWorker(workerWg, dataChannel, returnChannel, masterStats)
+
+			runningJobs++
+		} else {
+			// Reuse data.
+			data = *<-returnChannel
+		}
 
 		// Read a block.
-		buffer := make([]byte, bufferSize)
-
-		bytesRead, err := source.Read(buffer)
+		bytesRead, err := source.Read(data.Buf)
 		if err != nil {
 			if err == io.EOF {
 				// We're done.
@@ -110,19 +149,19 @@ func Count(source io.Reader) (Stats, error) {
 			return Stats{}, fmt.Errorf("failure during read: %w", err)
 		}
 
-		// Set up the workerData.
-		data := workerData{Buf: buffer, InWord: inWord, BytesRead: uint64(bytesRead)}
+		// Fill in data.
+		data.BytesRead = uint64(bytesRead)
+		data.InWord = inWord
 
 		// Save the inWord value for the next block.
-		inWord = !isAnyWhitespace(buffer[bytesRead-1])
+		inWord = !isAnyWhitespace(data.Buf[bytesRead-1])
 
-		// Start the worker.
-		workerWg.Add(1)
-
-		go countWorker(workerWg, &data, masterStats)
+		// Ship off the data.
+		dataChannel <- &data
 	}
 
 	// Wait for the workers to finish.
+	close(dataChannel)
 	workerWg.Wait()
 
 	return *masterStats, nil
