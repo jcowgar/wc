@@ -6,23 +6,24 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"sync/atomic"
 )
 
-const bufferSize int = 8 * 1024
+const bufferSize int = 16 * 1024
 
 // Stats tracks the Character, Word and Line count.
 type Stats struct {
 	// Chars is the number of characters counted.
-	Chars int
+	Chars uint64
 
 	// Words is the number of words counted. A single word is
 	// defined by one or more Unicode Letter characters separated
 	// by a non Unicode Letter character.
-	Words int
+	Words uint64
 
 	// Lines is the number of lines counted. Lines is computed
 	// by the number of Newline (\n) characters.
-	Lines int
+	Lines uint64
 }
 
 // isAnyWhitespace will test the byte to see if it is any whitespace.
@@ -33,20 +34,18 @@ func isAnyWhitespace(b byte) bool {
 // Set up the workers
 
 type workerData struct {
-	Stats
-
 	Buf       []byte
-	BytesRead int
+	BytesRead uint64
 	InWord    bool
 }
 
 // countWorker will run as a job to count the data given in the workerData channel.
 // It will return its Stats to the statChannel.
-func countWorker(wg *sync.WaitGroup, dataChannel <-chan *workerData, statChannel chan<- *workerData) {
+func countWorker(wg *sync.WaitGroup, dataChannel <-chan *workerData, stats *Stats) {
 	for data := range dataChannel {
 		inWord := data.InWord
 
-		var lines, words int
+		var lines, words uint64
 
 		for _, b := range data.Buf[:data.BytesRead] {
 			switch {
@@ -77,39 +76,18 @@ func countWorker(wg *sync.WaitGroup, dataChannel <-chan *workerData, statChannel
 			}
 		}
 
-		data.Lines = lines
-		data.Words = words
-		data.Chars = data.BytesRead
-		statChannel <- data
+		atomic.AddUint64(&stats.Lines, lines)
+		atomic.AddUint64(&stats.Words, words)
+		atomic.AddUint64(&stats.Chars, data.BytesRead)
 	}
 
 	wg.Done()
 }
 
-// statAggregatorWorker will consolidate the Stats from the statChannel into toStats.
-// It will finish when True is found in the quitChannel.
-func statAggegatorWorker(wg *sync.WaitGroup, statChannel <-chan *workerData, quitChannel <-chan bool, toStats *Stats) {
-	for {
-		select {
-		case stat := <-statChannel:
-			toStats.Chars += stat.Chars
-			toStats.Words += stat.Words
-			toStats.Lines += stat.Lines
-
-		case finished := <-quitChannel:
-			if finished {
-				wg.Done()
-
-				return
-			}
-		}
-	}
-}
-
 // Count returns the Stats for the io.Reader.
 func Count(r io.Reader) (Stats, error) {
 	// Figure out the max maxJobs.
-	maxJobs := runtime.GOMAXPROCS(0) - 1
+	maxJobs := runtime.GOMAXPROCS(0)
 	if maxJobs < 1 {
 		maxJobs = 1
 	}
@@ -117,35 +95,28 @@ func Count(r io.Reader) (Stats, error) {
 	// Track how many jobs we've started.
 	var runningJobs int
 
-	// Set up the channels.
+	// Set up the masterStats.
+	masterStats := &Stats{}
+
+	// Set up the channel.
 	dataChannel := make(chan *workerData, maxJobs)
-	statChannel := make(chan *workerData, maxJobs)
-	quitChannel := make(chan bool)
-
-	// Start the aggregator.
-	masterStats := Stats{}
-	aggregatorWg := &sync.WaitGroup{}
-	aggregatorWg.Add(1)
-
-	go statAggegatorWorker(aggregatorWg, statChannel, quitChannel, &masterStats)
 
 	// Create the workerWg.
 	workerWg := &sync.WaitGroup{}
 
-	// Read from the buffer.
-
 	// Track whether the last block started in a word.
 	inWord := false
 
+	// Read from the buffer.
 	for {
 		// See if we need another job.
 		if runningJobs < maxJobs {
 			workerWg.Add(1)
-			go countWorker(workerWg, dataChannel, statChannel)
+			go countWorker(workerWg, dataChannel, masterStats)
 			runningJobs++
 		}
 
-		data := workerData{Stats: Stats{}, Buf: make([]byte, bufferSize), InWord: inWord, BytesRead: 0}
+		data := workerData{Buf: make([]byte, bufferSize), InWord: inWord, BytesRead: 0}
 
 		bytesRead, e := r.Read(data.Buf)
 		if e != nil {
@@ -156,7 +127,7 @@ func Count(r io.Reader) (Stats, error) {
 			return Stats{}, fmt.Errorf("failure during read: %w", e)
 		}
 
-		data.BytesRead = bytesRead
+		data.BytesRead = uint64(bytesRead)
 		nextInWord := !isAnyWhitespace(data.Buf[bytesRead-1])
 
 		dataChannel <- &data
@@ -167,11 +138,7 @@ func Count(r io.Reader) (Stats, error) {
 	close(dataChannel)
 	workerWg.Wait()
 
-	// Tell the aggregator to finish up.
-	quitChannel <- true
-	aggregatorWg.Wait()
-
-	return masterStats, nil
+	return *masterStats, nil
 }
 
 // CountFile returns the Stats for filename.
