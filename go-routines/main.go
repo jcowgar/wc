@@ -38,8 +38,8 @@ type workerData struct {
 	InWord    bool
 }
 
-// countWorker will run as a job to count the data given in the workerData channel.
-// It will return its Stats to the statChannel.
+// countWorker will run as a job to count the given data and
+// increment the values in the given stats.
 func countWorker(wg *sync.WaitGroup, data *workerData, stats *Stats) {
 	inWord := data.InWord
 
@@ -74,10 +74,12 @@ func countWorker(wg *sync.WaitGroup, data *workerData, stats *Stats) {
 		}
 	}
 
+	// Increment the stats.
 	atomic.AddUint64(&stats.Lines, lines)
 	atomic.AddUint64(&stats.Words, words)
 	atomic.AddUint64(&stats.Chars, data.BytesRead)
 
+	// ... and we're done.
 	wg.Done()
 }
 
@@ -94,23 +96,31 @@ func Count(r io.Reader) (Stats, error) {
 
 	// Read from the buffer.
 	for {
+		// Set up the workerData.
 		data := workerData{Buf: make([]byte, bufferSize), InWord: inWord, BytesRead: 0}
 
-		bytesRead, e := r.Read(data.Buf)
-		if e != nil {
-			if e == io.EOF {
+		// Read a block.
+		bytesRead, err := r.Read(data.Buf)
+		if err != nil {
+			if err == io.EOF {
+				// We're done.
 				break
 			}
 
-			return Stats{}, fmt.Errorf("failure during read: %w", e)
+			// Something else has gone wrong.
+			return Stats{}, fmt.Errorf("failure during read: %w", err)
 		}
 
+		// Record the values
 		data.BytesRead = uint64(bytesRead)
 		nextInWord := !isAnyWhitespace(data.Buf[bytesRead-1])
 
+		// Start the worker.
 		workerWg.Add(1)
+
 		go countWorker(workerWg, &data, masterStats)
 
+		// Save the inWord value for the next block.
 		inWord = nextInWord
 	}
 
