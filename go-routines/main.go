@@ -4,25 +4,25 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"sync"
+	"sync/atomic"
 )
 
-const bufferSize int = 8 * 1024
+const bufferSize int = 16 * 1024
 
 // Stats tracks the Character, Word and Line count.
 type Stats struct {
 	// Chars is the number of characters counted.
-	Chars int
+	Chars uint64
 
 	// Words is the number of words counted. A single word is
 	// defined by one or more Unicode Letter characters separated
 	// by a non Unicode Letter character.
-	Words int
+	Words uint64
 
 	// Lines is the number of lines counted. Lines is computed
 	// by the number of Newline (\n) characters.
-	Lines int
+	Lines uint64
 }
 
 // isAnyWhitespace will test the byte to see if it is any whitespace.
@@ -30,157 +30,111 @@ func isAnyWhitespace(b byte) bool {
 	return (b > 0 && b <= 32) || b == 0xA0 || b == 0x85
 }
 
-// Set up the workers
-
+// Set up the workers.
 type workerData struct {
-	Stats
-
 	Buf       []byte
-	BytesRead int
+	BytesRead uint64
 	InWord    bool
 }
 
-// countWorker will run as a job to count the data given in the workerData channel.
-// It will return its Stats to the statChannel.
-func countWorker(wg *sync.WaitGroup, dataChannel <-chan *workerData, statChannel chan<- *workerData) {
-	for data := range dataChannel {
-		inWord := data.InWord
+// countWorker will run as a job to count the given data and
+// increment the values in the given stats.
+func countWorker(waitGroup *sync.WaitGroup, data *workerData, stats *Stats) {
+	inWord := data.InWord
 
-		var lines, words int
+	var lines, words uint64
 
-		for _, b := range data.Buf[:data.BytesRead] {
-			switch {
-			// Optimize for most likely case (ASCII)
-			case b > 32 && b <= 127:
-				if !inWord {
-					inWord = true
-					words++
-				}
-
-			case b == '\n':
-				inWord = false
-				lines++
-
-			case b == 0:
-				// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
-
-			case isAnyWhitespace(b):
-				inWord = false
-
-			// Leave even though first switch condition is duplicate. This will
-			// catch non-standard Unicode situations.
-			default:
-				if !inWord {
-					inWord = true
-					words++
-				}
+	for _, thisByte := range data.Buf[:data.BytesRead] {
+		switch {
+		// Optimize for most likely case (ASCII)
+		case thisByte > 32 && thisByte <= 127:
+			if !inWord {
+				inWord = true
+				words++
 			}
-		}
 
-		data.Lines = lines
-		data.Words = words
-		data.Chars = data.BytesRead
-		statChannel <- data
-	}
+		case thisByte == '\n':
+			inWord = false
+			lines++
 
-	wg.Done()
-}
+		case thisByte == 0:
+			// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
 
-// statAggregatorWorker will consolidate the Stats from the statChannel into toStats.
-// It will finish when True is found in the quitChannel.
-func statAggegatorWorker(wg *sync.WaitGroup, statChannel <-chan *workerData, quitChannel <-chan bool, toStats *Stats) {
-	for {
-		select {
-		case stat := <-statChannel:
-			toStats.Chars += stat.Chars
-			toStats.Words += stat.Words
-			toStats.Lines += stat.Lines
+		case isAnyWhitespace(thisByte):
+			inWord = false
 
-		case finished := <-quitChannel:
-			if finished {
-				wg.Done()
-
-				return
+		// Leave even though first switch condition is duplicate. This will
+		// catch non-standard Unicode situations.
+		default:
+			if !inWord {
+				inWord = true
+				words++
 			}
 		}
 	}
+
+	// Increment the stats.
+	atomic.AddUint64(&stats.Lines, lines)
+	atomic.AddUint64(&stats.Words, words)
+	atomic.AddUint64(&stats.Chars, data.BytesRead)
+
+	// ... and we're done.
+	waitGroup.Done()
 }
 
 // Count returns the Stats for the io.Reader.
-func Count(r io.Reader) (Stats, error) {
-	// Figure out the max maxJobs.
-	maxJobs := runtime.GOMAXPROCS(0) - 1
-	if maxJobs < 1 {
-		maxJobs = 1
-	}
-
-	// Track how many jobs we've started.
-	var runningJobs int
-
-	// Set up the channels.
-	dataChannel := make(chan *workerData, maxJobs)
-	statChannel := make(chan *workerData, maxJobs)
-	quitChannel := make(chan bool)
-
-	// Start the aggregator.
-	masterStats := Stats{}
-	aggregatorWg := &sync.WaitGroup{}
-	aggregatorWg.Add(1)
-
-	go statAggegatorWorker(aggregatorWg, statChannel, quitChannel, &masterStats)
+func Count(source io.Reader) (Stats, error) {
+	// Set up the masterStats.
+	masterStats := &Stats{}
 
 	// Create the workerWg.
 	workerWg := &sync.WaitGroup{}
 
-	// Read from the buffer.
-
 	// Track whether the last block started in a word.
 	inWord := false
 
+	// Read from the buffer.
 	for {
-		// See if we need another job.
-		if runningJobs < maxJobs {
-			workerWg.Add(1)
-			go countWorker(workerWg, dataChannel, statChannel)
-			runningJobs++
-		}
 
-		data := workerData{Stats: Stats{}, Buf: make([]byte, bufferSize), InWord: inWord, BytesRead: 0}
+		// Read a block.
+		buffer := make([]byte, bufferSize)
 
-		bytesRead, e := r.Read(data.Buf)
-		if e != nil {
-			if e == io.EOF {
+		bytesRead, err := source.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				// We're done.
 				break
 			}
 
-			return Stats{}, fmt.Errorf("failure during read: %w", e)
+			// Something else has gone wrong.
+			return Stats{}, fmt.Errorf("failure during read: %w", err)
 		}
 
-		data.BytesRead = bytesRead
-		nextInWord := !isAnyWhitespace(data.Buf[bytesRead-1])
+		// Set up the workerData.
+		data := workerData{Buf: buffer, InWord: inWord, BytesRead: uint64(bytesRead)}
 
-		dataChannel <- &data
-		inWord = nextInWord
+		// Save the inWord value for the next block.
+		inWord = !isAnyWhitespace(buffer[bytesRead-1])
+
+		// Start the worker.
+		workerWg.Add(1)
+
+		go countWorker(workerWg, &data, masterStats)
 	}
 
 	// Wait for the workers to finish.
-	close(dataChannel)
 	workerWg.Wait()
 
-	// Tell the aggregator to finish up.
-	quitChannel <- true
-	aggregatorWg.Wait()
-
-	return masterStats, nil
+	return *masterStats, nil
 }
 
 // CountFile returns the Stats for filename.
 func CountFile(filename string) (Stats, error) {
-	fh, err := os.Open(filename)
+	file, err := os.Open(filename)
 	if err != nil {
 		return Stats{}, fmt.Errorf("failed to open file: %w", err)
 	}
-	defer fh.Close()
+	defer file.Close()
 
-	return Count(fh)
+	return Count(file)
 }

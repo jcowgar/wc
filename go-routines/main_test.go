@@ -1,6 +1,7 @@
 package wc
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -76,5 +77,14 @@ func TestCountFile(t *testing.T) {
 				t.Errorf("CountFile() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func BenchmarkCountFile(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		if _, err := CountFile("../testdata/md-10.txt"); err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 }
