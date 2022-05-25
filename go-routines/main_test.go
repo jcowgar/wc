@@ -81,8 +81,8 @@ func TestCountFile(t *testing.T) {
 }
 
 func BenchmarkCountFile(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		if _, err := CountFile("../testdata/md-10.txt"); err != nil {
+	for i := 0; i < 1; i++ {
+		if _, err := CountFile("../testdata/md-1000.txt"); err != nil {
 			fmt.Println(err)
 			return
 		}
