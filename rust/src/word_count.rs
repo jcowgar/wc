@@ -1,6 +1,16 @@
 use std::{fs::File, io::Read, iter::Sum, path::Path, sync::mpsc};
 use workerpool::{Pool, Worker};
 
+fn is_space(v:u8) -> bool {
+    (v > 0 && v <= 32) || v == 0x85 || v == 0xA0
+}
+
+pub struct JobData {
+    buf: Vec<u8>,
+    in_word: bool,
+    return_channel: mpsc::Sender<Vec<u8>>,
+}
+
 /// Track the statistics of a single file count.
 #[derive(Debug, Default)]
 pub struct Stats {
@@ -29,34 +39,36 @@ impl Sum for Stats {
 }
 
 impl Worker for Stats {
-    type Input = Vec<u8>;
+    type Input = JobData;
     type Output = Stats;
 
-    fn execute(&mut self, inp: Self::Input) -> Self::Output {
-        let chars = inp.len();
+    fn execute(&mut self, job_data: Self::Input) -> Self::Output {
+        let chars = job_data.buf.len();
         let mut words: usize = 0;
         let mut lines: usize = 0;
-        let mut in_word = false;
+        let mut in_word = job_data.in_word;
 
-        for ch in inp {
-            if ch > 32 && ch <= 127 {
+        for ch in &job_data.buf {
+            if ch > &32 && ch <= &127 {
                 if !in_word {
                     in_word = true;
                     words += 1;
                 }
-            } else if ch == 0 {
-                // ignore
-            } else if ch <= 32 {
-                if ch == 10 {
+            } else if is_space(*ch) {
+                if ch == &10 {
                     lines += 1;
                 }
 
                 in_word = false;
+            } else if ch == &0 {
+                // ignore
             } else if !in_word {
                 in_word = true;
                 words += 1;
             }
         }
+
+        job_data.return_channel.send(job_data.buf).unwrap_or_else(|e| panic!("send job data back failed: {}", e));
 
         Stats { lines, words, chars }
     }
@@ -71,16 +83,27 @@ pub fn count_file(fname: &str) -> std::io::Result<Stats> {
     let mut jobs: usize = 0;
     let pool = Pool::<Stats>::new(n_workers);
     let (tx, rx) = mpsc::channel();
+    let (tx_job_data, rx_job_data) = mpsc::channel();
     let mut file = File::open(Path::new(fname))
         .unwrap_or_else(|e| panic!("couldn't open file: {}", e));
 
+    let mut in_word = false;
+
     loop {
-        let mut buf = vec![0; BUFFER_SIZE];
+        let mut buf = match rx_job_data.try_recv() {
+            Err(_) => vec![0; BUFFER_SIZE],
+            Ok(v) => v,
+        };
+
         read_size = file.read(&mut buf).unwrap_or_else(|e| panic!("{}", e));
         if read_size < BUFFER_SIZE {
             buf.truncate(read_size);
         }
-        pool.execute_to(tx.clone(), buf);
+
+        let rd = JobData{buf, in_word, return_channel: tx_job_data.clone()};
+        in_word = !is_space(rd.buf[read_size - 1]);
+
+        pool.execute_to(tx.clone(), rd);
 
         jobs += 1;
 
