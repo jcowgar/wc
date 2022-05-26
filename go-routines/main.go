@@ -28,7 +28,8 @@ type Stats struct {
 
 // isAnyWhitespace will test the byte to see if it is any whitespace.
 func isAnyWhitespace(b byte) bool {
-	return (b > 0 && b <= 32) || b == 0xA0 || b == 0x85
+	// return (b < 32 && b > 0) || b == 0xA0 || b == 0x85
+	return b == ' ' || b == '\t' || b == '\n' || b == 0xA0 || b == 0x85 || b == '\r' || b == '\f' || b == '\v'
 }
 
 // CountSlice gets stats from a slice and increments the given Stats
@@ -44,13 +45,6 @@ func CountSlice(data []byte, isAlreadyInWord bool, into *Stats) {
 
 	for _, thisByte := range data {
 		switch {
-		// Optimize for most likely case (ASCII)
-		case thisByte > 32 && thisByte <= 127:
-			if !inWord {
-				inWord = true
-				words++
-			}
-
 		case isAnyWhitespace(thisByte):
 			if thisByte == '\n' {
 				lines++
@@ -58,12 +52,8 @@ func CountSlice(data []byte, isAlreadyInWord bool, into *Stats) {
 
 			inWord = false
 
-		case thisByte == 0:
-			// Ignore nulls entirely, which will let UTF-16 and UTF-32 work correctly.
-
-		// Leave even though first switch condition is duplicate. This will
-		// catch non-standard Unicode situations.
-		default:
+		case thisByte > 0:
+			// Nulls are ignored entirely.
 			if !inWord {
 				inWord = true
 				words++
@@ -73,6 +63,7 @@ func CountSlice(data []byte, isAlreadyInWord bool, into *Stats) {
 
 	// Increment the stats.
 	bytesRead := len(data)
+
 	atomic.AddUint64(&into.Lines, lines)
 	atomic.AddUint64(&into.Words, words)
 	atomic.AddUint64(&into.Chars, uint64(bytesRead))
@@ -120,8 +111,8 @@ func Count(source io.Reader) (Stats, error) {
 	// Configure the jobs.
 	workerWg := &sync.WaitGroup{}
 
-	dataChannel := make(chan *workerData, maxJobs)
-	returnChannel := make(chan *workerData, maxJobs)
+	dataChannel := make(chan *workerData, maxJobs+1)
+	returnChannel := make(chan *workerData, maxJobs+1)
 
 	runningJobs := 0
 
