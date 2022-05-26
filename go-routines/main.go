@@ -1,7 +1,6 @@
 package wc
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -118,9 +117,6 @@ func Count(source io.Reader) (Stats, error) {
 		maxJobs = 1
 	}
 
-	// Buffer the source.
-	bufSource := bufio.NewReaderSize(source, bufferSize*maxJobs)
-
 	// Configure the jobs.
 	workerWg := &sync.WaitGroup{}
 
@@ -154,7 +150,7 @@ func Count(source io.Reader) (Stats, error) {
 		}
 
 		// Read a block.
-		bytesRead, err := bufSource.Read(data.Buf)
+		bytesRead, err := source.Read(data.Buf)
 		if err != nil {
 			if err == io.EOF {
 				// We're done.
