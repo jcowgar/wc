@@ -175,12 +175,12 @@ func BenchmarkReadBuffered(b *testing.B) {
 
 	reader := bufio.NewReaderSize(file, runtime.GOMAXPROCS(0)*bufferSize)
 
-	buffer := make([]byte, bufferSize)
+	data := workerData{Buf: make([]byte, bufferSize)}
 
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err = reader.Read(buffer)
+		_, err = reader.Read(data.Buf)
 		if err != nil {
 			if err == io.EOF {
 				file.Seek(0, 0)
@@ -206,8 +206,8 @@ func BenchmarkReadBufferedWithNewBuffer(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		buffer := make([]byte, bufferSize)
-		_, err = reader.Read(buffer)
+		data := workerData{Buf: make([]byte, bufferSize)}
+		_, err = reader.Read(data.Buf)
 		if err != nil {
 			if err == io.EOF {
 				file.Seek(0, 0)
@@ -229,12 +229,12 @@ func BenchmarkReadUnbuffered(b *testing.B) {
 
 	defer file.Close()
 
-	buffer := make([]byte, bufferSize)
+	data := workerData{Buf: make([]byte, bufferSize)}
 
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err = file.Read(buffer)
+		_, err = file.Read(data.Buf)
 		if err != nil {
 			if err == io.EOF {
 				file.Seek(0, 0)
@@ -259,8 +259,9 @@ func BenchmarkReadUnbufferedWithNewBuffer(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		buffer := make([]byte, bufferSize)
-		_, err = file.Read(buffer)
+		data := workerData{Buf: make([]byte, bufferSize)}
+
+		_, err = file.Read(data.Buf)
 		if err != nil {
 			if err == io.EOF {
 				file.Seek(0, 0)
