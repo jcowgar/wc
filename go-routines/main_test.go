@@ -1,8 +1,11 @@
 package wc
 
 import (
-	"fmt"
+	"bufio"
+	"io"
+	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -120,18 +123,151 @@ func TestCountSlice(t *testing.T) {
 }
 
 func BenchmarkCountFile(b *testing.B) {
-	for i := 0; i < 1; i++ {
+	for i := 0; i < b.N; i++ {
 		if _, err := CountFile("../testdata/md-1000.txt"); err != nil {
-			fmt.Println(err)
-			return
+			panic(err)
 		}
 	}
 }
 
 func BenchmarkCountSlice(b *testing.B) {
+	b.StopTimer()
+
+	file, err := os.Open("../testdata/md-1000.txt")
+	if err != nil {
+		panic(err)
+	}
+
+	defer func() {
+		if file != nil {
+			file.Close()
+			file = nil
+		}
+	}()
+
+	buffer := make([]byte, bufferSize)
+
+	_, err = file.Read(buffer)
+	if err != nil {
+		panic(err)
+	}
+	file.Close()
+	file = nil
+
 	stats := Stats{}
 
+	b.StartTimer()
+
 	for i := 0; i < b.N; i++ {
-		CountSlice([]byte("Some long string\nthat spans two lines\nor more\n"), false, &stats)
+		CountSlice(buffer, false, &stats)
+	}
+}
+
+func BenchmarkReadBuffered(b *testing.B) {
+	b.StopTimer()
+
+	file, err := os.Open("../testdata/md-1000.txt")
+	if err != nil {
+		panic(err)
+	}
+
+	defer file.Close()
+
+	reader := bufio.NewReaderSize(file, runtime.GOMAXPROCS(0)*bufferSize)
+
+	buffer := make([]byte, bufferSize)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, err = reader.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				file.Seek(0, 0)
+				continue
+			}
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkReadBufferedWithNewBuffer(b *testing.B) {
+	b.StopTimer()
+
+	file, err := os.Open("../testdata/md-1000.txt")
+	if err != nil {
+		panic(err)
+	}
+
+	defer file.Close()
+
+	reader := bufio.NewReaderSize(file, runtime.GOMAXPROCS(0)*bufferSize)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		buffer := make([]byte, bufferSize)
+		_, err = reader.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				file.Seek(0, 0)
+				continue
+			}
+
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkReadUnbuffered(b *testing.B) {
+	b.StopTimer()
+
+	file, err := os.Open("../testdata/md-1000.txt")
+	if err != nil {
+		panic(err)
+	}
+
+	defer file.Close()
+
+	buffer := make([]byte, bufferSize)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, err = file.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				file.Seek(0, 0)
+				continue
+			}
+
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkReadUnbufferedWithNewBuffer(b *testing.B) {
+	b.StopTimer()
+
+	file, err := os.Open("../testdata/md-1000.txt")
+	if err != nil {
+		panic(err)
+	}
+
+	defer file.Close()
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		buffer := make([]byte, bufferSize)
+		_, err = file.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				file.Seek(0, 0)
+				continue
+			}
+
+			panic(err)
+		}
 	}
 }
