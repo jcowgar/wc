@@ -19,7 +19,7 @@ pub fn count_lines(f: std.fs.File) !Stats {
     var r = f.reader();
 
     var bytesRead: usize = 0;
-    var inWord = false;
+    var inWord: bool = false;
     var lines: usize = 0;
     var words: usize = 0;
     var chars: usize = 0;
@@ -33,28 +33,11 @@ pub fn count_lines(f: std.fs.File) !Stats {
         chars += bytesRead;
 
         for (byteBuf[0..bytesRead]) |b| {
-            switch (b) {
-                33...127 => {
-                    if (!inWord) {
-                        inWord = true;
-                        words += 1;
-                    }
-                },
-                10 => {
-                    inWord = false;
-                    lines += 1;
-                },
-                1...9, 11...32 => {
-                    inWord = false;
-                },
-                0 => {},
-                else => {
-                    if (!inWord) {
-                        inWord = true;
-                        words += 1;
-                    }
-                },
-            }
+            var isCharAWordChar = b != ' ' and !(b >= 9 and b <= 13) and b != 0xa5 and b != 0xa0;
+
+            lines += @boolToInt(b == 10);
+            words += @boolToInt(!inWord and isCharAWordChar);
+            inWord = isCharAWordChar;
         }
     }
 
