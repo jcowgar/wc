@@ -11,6 +11,9 @@ c/wc
 *.xojo_uistate
 xojo/Builds - wc
 xojo/wc.debug
+haskell/*.hi
+haskell/*.o
+haskell/wc
 
 # Generated test data ignores
 testdata/md-10.txt
