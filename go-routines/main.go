@@ -11,6 +11,32 @@ import (
 
 const bufferSize int = 16 * 1024
 
+var (
+	wordChars       []uint64
+	whitespaceChars []uint64
+	eolChars        []uint64
+)
+
+func init() {
+	whitespaceChars = make([]uint64, 256)
+	wordChars = make([]uint64, 256)
+	eolChars = make([]uint64, 256)
+
+	for i := 1; i <= 32; i++ {
+		whitespaceChars[i] = 1
+	}
+	whitespaceChars[0x85] = 1
+	whitespaceChars[0xA0] = 1
+
+	for i := 33; i < len(wordChars); i++ {
+		if i != 0x85 && i != 0xA0 {
+			wordChars[i] = 1
+		}
+	}
+
+	eolChars[10] = 1
+}
+
 // Stats tracks the Character, Word and Line count.
 type Stats struct {
 	// Chars is the number of characters counted.
@@ -41,24 +67,31 @@ func isAnyWhitespace(b byte) bool {
 func CountSlice(data []byte, isAlreadyInWord bool, into *Stats) {
 	var lines, words uint64
 
-	inWord := isAlreadyInWord
+	inWhitespace := uint64(1)
+	if isAlreadyInWord {
+		inWhitespace = 0
+	}
 
 	for _, thisByte := range data {
-		switch {
-		case isAnyWhitespace(thisByte):
-			if thisByte == '\n' {
-				lines++
-			}
+		lines += eolChars[thisByte]
+		words += inWhitespace * wordChars[thisByte]
+		inWhitespace = whitespaceChars[thisByte]
 
-			inWord = false
+		// switch {
+		// case isAnyWhitespace(thisByte):
+		// 	if thisByte == '\n' {
+		// 		lines++
+		// 	}
 
-		case thisByte > 0:
-			// Nulls are ignored entirely.
-			if !inWord {
-				inWord = true
-				words++
-			}
-		}
+		// 	inWord = false
+
+		// case thisByte > 0:
+		// 	// Nulls are ignored entirely.
+		// 	if !inWord {
+		// 		inWord = true
+		// 		words++
+		// 	}
+		// }
 	}
 
 	// Increment the stats.
