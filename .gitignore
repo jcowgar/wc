@@ -9,8 +9,8 @@ typescript/dist
 __pycache__
 c/wc
 *.xojo_uistate
-xojo/Builds - wc
-xojo/wc.debug
+xojo*/Builds - wc
+xojo*/wc.debug
 haskell/*.hi
 haskell/*.o
 haskell/wc
