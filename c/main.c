@@ -3,7 +3,7 @@
 #include <ctype.h>
 #include <string.h>
 
-const int BUFSIZE = 1024*4;
+const int BUFSIZE = 1024*8;
 
 int showLines = 0;
 int showWords = 0;
@@ -33,7 +33,12 @@ void word_count(char *fname, Stats *stats) {
 	FILE *fp;
 
 	int inWord = 0;
-	int index = 0;
+	int isWordChar = 0;
+	int lines = 0;
+	int words = 0;
+	int chars = 0;
+
+	char *p, *pe;
 
 	fp = fopen(fname, "r");
 
@@ -44,30 +49,24 @@ void word_count(char *fname, Stats *stats) {
 
 	while (feof(fp) == 0) {
 		size_t read = fread(buf, sizeof(char), BUFSIZE, fp);
+		p = &buf[0];
+		pe = &buf[read];
 
-		for (index = 0; index < read; index++) {
-			char ch = buf[index];
+		chars += read;
 
-			stats->chars++;
+		while (p != pe) {
+			char b = *p++;
+			isWordChar = b != ' ' && !(b >= 9 && b <= 13) && b != 0xa5 && b != 0xa0;
 
-			if (ch > 32 && ch <= 127) {
-				if (inWord == 0) {
-					inWord = 1;
-					stats->words++;
-				}
-			} else if (ch == '\n') {
-				inWord = 0;
-				stats->lines++;
-			} else if (ch == ' ' || ch == 0xA5 || ch == 0xA0) {
-				inWord = 0;
-			} else if (ch == 0) {
-				// Ignore
-			} else if (inWord == 0) {
-				inWord = 1;
-				stats->words++;
-			}
+            lines += b == 10;
+            words += inWord == 0 && isWordChar == 1;
+            inWord = isWordChar;
 		}
 	}
+
+	stats->lines = lines;
+	stats->words = words;
+	stats->chars = chars;
 
 	fclose(fp);
 }
@@ -122,4 +121,3 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
-
