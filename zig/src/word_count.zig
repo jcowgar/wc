@@ -33,11 +33,11 @@ pub fn count_lines(f: std.fs.File) !Stats {
         chars += bytesRead;
 
         for (byteBuf[0..bytesRead]) |b| {
-            var isCharAWordChar = b != ' ' and !(b >= 9 and b <= 13) and b != 0xa5 and b != 0xa0;
+            var isWordChar = b != ' ' and !(b >= 9 and b <= 13) and b != 0x85 and b != 0xA0;
 
             lines += @boolToInt(b == 10);
-            words += @boolToInt(!inWord and isCharAWordChar);
-            inWord = isCharAWordChar;
+            words += @boolToInt(!inWord and isWordChar);
+            inWord = isWordChar;
         }
     }
 
