@@ -1,6 +1,5 @@
 # Language specific ignores
-go/wc
-go-routines/wc
+go*/wc
 rust/target
 zig-cache
 zig-out
