@@ -10,6 +10,8 @@ c/wc
 *.xojo_uistate
 xojo*/Builds - wc
 xojo*/wc.debug
+xojo-desktop/Builds - WordCount
+xojo-desktop/WordCount.debug
 haskell/*.hi
 haskell/*.o
 haskell/wc
