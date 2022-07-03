@@ -19,5 +19,6 @@ testdata/md-10.txt
 testdata/md-100.txt
 testdata/md-1000.txt
 
-# General
+# Editor
 .vscode
+*.swp
