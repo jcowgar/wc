@@ -1,6 +1,8 @@
 const std = @import("std");
 const wc = @import("word_count.zig");
 
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+
 var showLines: bool = false;
 var showWords: bool = false;
 var showChars: bool = false;
@@ -8,11 +10,10 @@ var showChars: bool = false;
 const stdout = std.io.getStdOut().writer();
 
 pub fn main() anyerror!void {
-    var arena_instance = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena_instance.deinit();
-    const arena = arena_instance.allocator();
+    defer std.debug.assert(!gpa.deinit());
+    const allocator = gpa.allocator();
 
-    var files = try parseArgs(arena);
+    var files = try parseArgs(allocator);
 
     var totals = wc.Stats.empty();
 
